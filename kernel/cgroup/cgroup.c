@@ -29,6 +29,7 @@
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
 #include "cgroup-internal.h"
+//#include "../fs/kernfs/dir.c"
 
 #include <linux/cred.h>
 #include <linux/errno.h>
@@ -169,6 +170,12 @@ static u16 cgrp_dfl_threaded_ss_mask;
 
 /* The list of hierarchy roots */
 LIST_HEAD(cgroup_roots);
+
+/* Modified by Jonggyu
+ * List head for user cgorups */
+LIST_HEAD(ugroup_head);
+
+
 static int cgroup_root_count;
 
 /* hierarchy ID allocation and mapping, protected by cgroup_mutex */
@@ -1627,6 +1634,7 @@ int rebind_subsystems(struct cgroup_root *dst_root, u16 ss_mask)
 	struct cgroup_subsys *ss;
 	int ssid, i, ret;
 
+
 	lockdep_assert_held(&cgroup_mutex);
 
 	do_each_subsys_mask(ss, ssid, ss_mask) {
@@ -1855,21 +1863,62 @@ static void init_cgroup_housekeeping(struct cgroup *cgrp)
 void init_cgroup_root(struct cgroup_root *root, struct cgroup_sb_opts *opts)
 {
 	struct cgroup *cgrp = &root->cgrp;
-
 	INIT_LIST_HEAD(&root->root_list);
 	atomic_set(&root->nr_cgrps, 1);
 	cgrp->root = root;
 	init_cgroup_housekeeping(cgrp);
 	idr_init(&root->cgroup_idr);
-
+	idr_init(&root->cgroup_idr);
 	root->flags = opts->flags;
-	if (opts->release_agent)
+
+	if (opts->release_agent){
 		strscpy(root->release_agent_path, opts->release_agent, PATH_MAX);
-	if (opts->name)
+	}
+	if (opts->name){
 		strscpy(root->name, opts->name, MAX_CGROUP_ROOT_NAMELEN);
-	if (opts->cpuset_clone_children)
+	}
+	if (opts->cpuset_clone_children){
 		set_bit(CGRP_CPUSET_CLONE_CHILDREN, &root->cgrp.flags);
+	}
 }
+void init_cgroup_root_u(struct cgroup_root *root, struct cgroup_sb_opts *opts)
+{
+	struct cgroup *cgrp = &root->cgrp;
+	printk("in Init_cgroup_root---1");
+	INIT_LIST_HEAD(&root->root_list);
+	printk("in Init_cgroup_root---2");
+	atomic_set(&root->nr_cgrps, 1);
+	printk("in Init_cgroup_root---3");
+	cgrp->root = root;
+	printk("in Init_cgroup_root---4");
+	init_cgroup_housekeeping(cgrp);
+	printk("in Init_cgroup_root---5");
+	idr_init(&root->cgroup_idr);
+	printk("in Init_cgroup_root---6");
+	idr_init(&root->cgroup_idr);
+	printk("in Init_cgroup_root---7");
+	root->flags = opts->flags;
+	printk("in Init_cgroup_root---8");
+
+	if (opts->release_agent){
+		printk("in Init_cgroup_root---9");
+		strscpy(root->release_agent_path, opts->release_agent, PATH_MAX);
+		printk("in Init_cgroup_root---10");
+	}
+	if (opts->name){
+		printk("in Init_cgroup_root---11");
+		//strscpy(root->name, opts->name, MAX_CGROUP_ROOT_NAMELEN);
+		printk("in Init_cgroup_root---12");
+	}
+	if (opts->cpuset_clone_children){
+		printk("in Init_cgroup_root---13");
+		set_bit(CGRP_CPUSET_CLONE_CHILDREN, &root->cgrp.flags);
+		printk("in Init_cgroup_root---14");
+	}
+}
+
+
+
 
 int cgroup_setup_root(struct cgroup_root *root, u16 ss_mask, int ref_flags)
 {
@@ -1878,7 +1927,8 @@ int cgroup_setup_root(struct cgroup_root *root, u16 ss_mask, int ref_flags)
 	struct kernfs_syscall_ops *kf_sops;
 	struct css_set *cset;
 	int i, ret;
-
+	
+	printk("cgroup_setup_root");
 	lockdep_assert_held(&cgroup_mutex);
 
 	ret = cgroup_idr_alloc(&root->cgroup_idr, root_cgrp, 1, 2, GFP_KERNEL);
@@ -2549,6 +2599,7 @@ err:
  * the caller must be holding cgroup_threadgroup_rwsem.  The caller is also
  * responsible for invoking cgroup_migrate_add_src() and
  * cgroup_migrate_prepare_dst() on the targets before invoking this
+ * p
  * function and following up with cgroup_migrate_finish().
  *
  * As long as a controller's ->can_attach() doesn't fail, this function is
@@ -2561,7 +2612,6 @@ int cgroup_migrate(struct task_struct *leader, bool threadgroup,
 		   struct cgroup_mgctx *mgctx)
 {
 	struct task_struct *task;
-
 	/*
 	 * Prevent freeing of tasks while we take a snapshot. Tasks that are
 	 * already PF_EXITING could be freed from underneath us unless we
@@ -2580,7 +2630,6 @@ int cgroup_migrate(struct task_struct *leader, bool threadgroup,
 
 	return cgroup_migrate_execute(mgctx);
 }
-
 /**
  * cgroup_attach_task - attach a task or a whole threadgroup to a cgroup
  * @dst_cgrp: the cgroup to attach to
@@ -2589,16 +2638,20 @@ int cgroup_migrate(struct task_struct *leader, bool threadgroup,
  *
  * Call holding cgroup_mutex and cgroup_threadgroup_rwsem.
  */
+
+//Cgroup attach function
+//Descripted by Jonggyu
 int cgroup_attach_task(struct cgroup *dst_cgrp, struct task_struct *leader,
 		       bool threadgroup)
 {
 	DEFINE_CGROUP_MGCTX(mgctx);
 	struct task_struct *task;
 	int ret;
-
+		
 	ret = cgroup_migrate_vet_dst(dst_cgrp);
 	if (ret)
 		return ret;
+	
 
 	/* look up all src csets */
 	spin_lock_irq(&css_set_lock);
@@ -4805,6 +4858,17 @@ static struct cgroup *cgroup_create(struct cgroup *parent)
 	cgrp->self.parent = &parent->self;
 	cgrp->root = root;
 	cgrp->level = level;
+	
+	/*
+	 * Modified by Jonggyu
+	 */
+	cgrp->uid = current->loginuid;
+	/*
+	 * End
+	 */
+
+	
+
 	ret = cgroup_bpf_inherit(cgrp);
 	if (ret)
 		goto out_idr_free;
@@ -4946,7 +5010,12 @@ out_unlock:
 	cgroup_kn_unlock(parent_kn);
 	return ret;
 }
-
+/* Modified by Jonggyu
+ 
+struct cgroup* cgroup_mkdir_ugroup(struct kernfs_node *parent_kn, const char *name, umode_t mode)
+{
+}
+*/
 /*
  * This is called when the refcnt of a css is confirmed to be killed.
  * css_tryget_online() is now guaranteed to fail.  Tell the subsystem to
@@ -5148,6 +5217,10 @@ static void __init cgroup_init_subsys(struct cgroup_subsys *ss, bool early)
 
 	idr_init(&ss->css_idr);
 	INIT_LIST_HEAD(&ss->cfts);
+	/* Modified by Jonggyu
+	 * initialize ugroup list head */
+	INIT_LIST_HEAD(&ugroup_head);
+
 
 	/* Create the root cgroup state for this subsystem */
 	ss->root = &cgrp_dfl_root;
@@ -5237,8 +5310,10 @@ static u16 cgroup_disable_mask __initdata;
  */
 int __init cgroup_init(void)
 {
+
 	struct cgroup_subsys *ss;
 	int ssid;
+
 
 	BUILD_BUG_ON(CGROUP_SUBSYS_COUNT > 16);
 	BUG_ON(percpu_init_rwsem(&cgroup_threadgroup_rwsem));
@@ -5935,3 +6010,64 @@ static int __init cgroup_sysfs_init(void)
 }
 subsys_initcall(cgroup_sysfs_init);
 #endif /* CONFIG_SYSFS */
+
+//Modified by Jonggyu
+//cgroup_attach_ugroup - attach a task or whole threadgroup to a user group
+//End
+void cgroup_attach_ugroup(struct task_struct *tsk, kuid_t uid, struct task_struct *root)
+{
+	static int flag = 0;
+	struct cgroup *iter;
+	struct cgroup *new_cgroup;
+	struct cgroup_root *cgr_root;
+//	struct kernfs_node *parent;
+//	struct kernfs_node *root_kfs_node = kernfs_find_and_get_node_by_ino(cgrp_dfl_root.kf_root, 1);
+	char *i = "blkio";
+	//char i[4] = {0,};
+	int errno;
+	int ret;
+	struct cgroup_sb_opts opts;
+
+//	if(flag == 0){
+/*		printk("In initializing cgroup_attach_ugroup at first");
+		cgroup_lock_and_drain_offline(&cgrp_dfl_root.cgrp);
+		parse_cgroup_root_flags((char *)i, (unsigned int *) &opts);
+		cgr_root = kzalloc(sizeof(*cgr_root), GFP_KERNEL);
+		init_cgroup_root_u(cgr_root, &opts);
+		ret = cgroup_setup_root(cgr_root, opts.subsys_mask, PERCPU_REF_INIT_DEAD);
+		if(ret){
+				printk("cgroups setup fail");
+				return ;
+		}
+		percpu_ref_reinit(&root->cgrp.self.refcount);
+		flag++;
+		mutex_unlock(&cgroup_mutex);*/
+
+//		cgr_root = cgroup1_mount_u(0, "blkio");
+//		flag ++;
+	//	kfree(opts.release_agent);
+	//	kfree(opts.name);
+//	}
+	cgroup_ssid_enabled(3);
+	
+	list_for_each_entry(iter, &ugroup_head, ugroup_list) { //Working
+		if (iter->uid.val == uid.val) {
+				errno = cgroup_attach_task(iter, tsk, false); //Working
+				if (errno != 0)
+ 					printk("Errorno = %d", errno);
+				printk("the user group is found. the uid is %d\n", uid.val);
+				return ;
+		}
+	}
+	new_cgroup = cgroup_create(root->cgroups->subsys[3]->cgroup); //Working
+	errno = cgroup_apply_control_enable(new_cgroup);
+	printk("error = %d", errno);
+	cgroup_attach_task(new_cgroup, tsk, true); //Working
+	list_add(&new_cgroup->ugroup_list, &ugroup_head); //Working
+
+	return ;
+	//Cgroups data structure information
+	//tsk->cgroups->subsys[4]->cgroup->root
+	//tsk->cgroups->subsys[4]->cgroup->uid;
+	//task_struct -> css_set -> cgroup_subsys_state->cgroup->cgroup_root
+}

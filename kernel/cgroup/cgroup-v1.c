@@ -1128,6 +1128,9 @@ struct dentry *cgroup1_mount(struct file_system_type *fs_type, int flags,
 	struct dentry *dentry;
 	int i, ret;
 	bool new_root = false;
+	printk("int flags = %d, void data = %s, unsiged long magic =%ld", flags, (char *)data, magic);
+
+	printk("in cgroup1_mount");
 
 	cgroup_lock_and_drain_offline(&cgrp_dfl_root.cgrp);
 
@@ -1278,6 +1281,169 @@ out_free:
 
 	return dentry;
 }
+
+/* Added by Jonggyu
+ */
+struct cgroup_root *cgroup1_mount_u(int flags,
+			     void *data)
+{
+	struct super_block *pinned_sb = NULL;
+	struct cgroup_sb_opts opts;
+	struct cgroup_root *root;
+	struct cgroup_subsys *ss;
+	int i, ret;
+	bool new_root = false;
+
+	printk("in cgroup1_mount_u");
+
+	cgroup_lock_and_drain_offline(&cgrp_dfl_root.cgrp);
+
+	/* First find the desired set of subsystems */
+	ret = parse_cgroupfs_options(data, &opts);
+	if (ret)
+		goto out_unlock;
+
+	/*
+	 * Destruction of cgroup root is asynchronous, so subsystems may
+	 * still be dying after the previous unmount.  Let's drain the
+	 * dying subsystems.  We just need to ensure that the ones
+	 * unmounted previously finish dying and don't care about new ones
+	 * starting.  Testing ref liveliness is good enough.
+	 */
+	for_each_subsys(ss, i) {
+		if (!(opts.subsys_mask & (1 << i)) ||
+		    ss->root == &cgrp_dfl_root)
+			continue;
+
+		if (!percpu_ref_tryget_live(&ss->root->cgrp.self.refcnt)) {
+			mutex_unlock(&cgroup_mutex);
+			msleep(10);
+			ret = restart_syscall();
+			goto out_free;
+		}
+		cgroup_put(&ss->root->cgrp);
+	}
+
+	for_each_root(root) {
+		bool name_match = false;
+
+		if (root == &cgrp_dfl_root)
+			continue;
+
+		/*
+		 * If we asked for a name then it must match.  Also, if
+		 * name matches but sybsys_mask doesn't, we should fail.
+		 * Remember whether name matched.
+		 */
+		if (opts.name) {
+			if (strcmp(opts.name, root->name))
+				continue;
+			name_match = true;
+		}
+
+		/*
+		 * If we asked for subsystems (or explicitly for no
+		 * subsystems) then they must match.
+		 */
+		if ((opts.subsys_mask || opts.none) &&
+		    (opts.subsys_mask != root->subsys_mask)) {
+			if (!name_match)
+				continue;
+			ret = -EBUSY;
+			goto out_unlock;
+		}
+
+		if (root->flags ^ opts.flags)
+			pr_warn("new mount options do not match the existing superblock, will be ignored\n");
+
+		/*
+		 * We want to reuse @root whose lifetime is governed by its
+		 * ->cgrp.  Let's check whether @root is alive and keep it
+		 * that way.  As cgroup_kill_sb() can happen anytime, we
+		 * want to block it by pinning the sb so that @root doesn't
+		 * get killed before mount is complete.
+		 *
+		 * With the sb pinned, tryget_live can reliably indicate
+		 * whether @root can be reused.  If it's being killed,
+		 * drain it.  We can use wait_queue for the wait but this
+		 * path is super cold.  Let's just sleep a bit and retry.
+		 */
+		pinned_sb = kernfs_pin_sb(root->kf_root, NULL);
+		if (IS_ERR(pinned_sb) ||
+		    !percpu_ref_tryget_live(&root->cgrp.self.refcnt)) {
+			mutex_unlock(&cgroup_mutex);
+			if (!IS_ERR_OR_NULL(pinned_sb))
+				deactivate_super(pinned_sb);
+			msleep(10);
+			ret = restart_syscall();
+			goto out_free;
+		}
+
+		ret = 0;
+		goto out_unlock;
+	}
+
+	/*
+	 * No such thing, create a new one.  name= matching without subsys
+	 * specification is allowed for already existing hierarchies but we
+	 * can't create new one without subsys specification.
+	 */
+	if (!opts.subsys_mask && !opts.none) {
+		ret = -EINVAL;
+		goto out_unlock;
+	}
+
+	/* Hierarchies may only be created in the initial cgroup namespace. */
+
+	root = kzalloc(sizeof(*root), GFP_KERNEL);
+	if (!root) {
+		ret = -ENOMEM;
+		goto out_unlock;
+	}
+	new_root = true;
+
+	init_cgroup_root(root, &opts);
+
+	ret = cgroup_setup_root(root, opts.subsys_mask, PERCPU_REF_INIT_DEAD);
+	if (ret)
+		cgroup_free_root(root);
+
+out_unlock:
+	mutex_unlock(&cgroup_mutex);
+out_free:
+	kfree(opts.release_agent);
+	kfree(opts.name);
+
+	if (ret)
+		return ERR_PTR(ret);
+
+	/*
+	 * There's a race window after we release cgroup_mutex and before
+	 * allocating a superblock. Make sure a concurrent process won't
+	 * be able to re-use the root during this window by delaying the
+	 * initialization of root refcnt.
+	 */
+	if (new_root) {
+		mutex_lock(&cgroup_mutex);
+		percpu_ref_reinit(&root->cgrp.self.refcnt);
+		mutex_unlock(&cgroup_mutex);
+	}
+
+	/*
+	 * If @pinned_sb, we're reusing an existing root and holding an
+	 * extra ref on its sb.  Mount is complete.  Put the extra ref.
+	 */
+	if (pinned_sb)
+		deactivate_super(pinned_sb);
+
+	return root;
+}
+
+
+
+
+
+
 
 static int __init cgroup1_wq_init(void)
 {

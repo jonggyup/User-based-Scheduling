@@ -9,8 +9,10 @@ struct task_group;
 struct seq_file;
 
 #ifdef CONFIG_SCHED_AUTOGROUP
+//Modified by Jonggyu
 extern void sched_autogroup_attach(struct task_struct *p, kuid_t uid);
 extern void sched_autogroup_create_attach(struct task_struct *p, kuid_t uid);
+//End
 extern void sched_autogroup_detach(struct task_struct *p);
 extern void sched_autogroup_fork(struct signal_struct *sig);
 extern void sched_autogroup_exit(struct signal_struct *sig);

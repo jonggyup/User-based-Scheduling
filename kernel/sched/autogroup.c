@@ -188,7 +188,7 @@ EXPORT_SYMBOL(sched_autogroup_attach);
 
 
 
-
+//Modified by Jonggyu
 /* Allocates GFP_KERNEL, cannot be called under any spinlock: */
 void sched_autogroup_create_attach(struct task_struct *p, kuid_t uid)
 {
@@ -201,6 +201,7 @@ void sched_autogroup_create_attach(struct task_struct *p, kuid_t uid)
 	autogroup_kref_put(ag);
 }
 EXPORT_SYMBOL(sched_autogroup_create_attach);
+//End
 
 /* Cannot be called under siglock. Currently has no users: */
 void sched_autogroup_detach(struct task_struct *p)

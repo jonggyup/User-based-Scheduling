@@ -308,6 +308,11 @@ void pr_cont_kernfs_path(struct kernfs_node *kn);
 struct kernfs_node *kernfs_get_parent(struct kernfs_node *kn);
 struct kernfs_node *kernfs_find_and_get_ns(struct kernfs_node *parent,
 					   const char *name, const void *ns);
+/* Modified by Jonggyu
+ */
+struct kernfs_node *
+kernfs_find_ns_u(struct kernfs_node *parent, const unsigned char *name, const void *ns);
+
 struct kernfs_node *kernfs_walk_and_get_ns(struct kernfs_node *parent,
 					   const char *path, const void *ns);
 void kernfs_get(struct kernfs_node *kn);
@@ -360,6 +365,14 @@ void kernfs_init(void);
 
 struct kernfs_node *kernfs_get_node_by_id(struct kernfs_root *root,
 	const union kernfs_node_id *id);
+
+/* Added by Jonggyu */
+struct kernfs_node *kernfs_find_and_get_node_by_ino(struct kernfs_root *root,
+	unsigned int ino);
+
+
+
+
 #else	/* CONFIG_KERNFS */
 
 static inline enum kernfs_node_type kernfs_type(struct kernfs_node *kn)
@@ -463,6 +476,12 @@ kernfs_mount_ns(struct file_system_type *fs_type, int flags,
 static inline void kernfs_kill_sb(struct super_block *sb) { }
 
 static inline void kernfs_init(void) { }
+/* Modified by Jonggyu
+ */
+static inline struct kernfs_node *
+kernfs_find_ns_u(struct kernfs_node *parent, const unsigned char *name, const void *ns) 
+{ return NULL; }
+
 
 #endif	/* CONFIG_KERNFS */
 
@@ -500,6 +519,15 @@ kernfs_create_dir(struct kernfs_node *parent, const char *name, umode_t mode,
 {
 	return kernfs_create_dir_ns(parent, name, mode, priv, NULL);
 }
+/* Modified by Jonggyu
+ *
+ */
+static inline struct kernfs_node *
+kernfs_find_ns_ugroup(struct kernfs_node *parent, const unsigned char *name, const void *ns)
+{
+		return kernfs_find_ns_u(parent, name, ns);
+}
+
 
 static inline struct kernfs_node *
 kernfs_create_file_ns(struct kernfs_node *parent, const char *name,

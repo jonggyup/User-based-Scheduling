@@ -817,7 +817,40 @@ static struct kernfs_node *kernfs_find_ns(struct kernfs_node *parent,
 	struct rb_node *node = parent->dir.children.rb_node;
 	bool has_ns = kernfs_ns_enabled(parent);
 	unsigned int hash;
+		
+	lockdep_assert_held(&kernfs_mutex);
 
+	if (has_ns != (bool)ns) {
+		WARN(1, KERN_WARNING "kernfs: ns %s in '%s' for '%s'\n",
+		     has_ns ? "required" : "invalid", parent->name, name);
+		return NULL;
+	}
+
+	hash = kernfs_name_hash(name, ns);
+	while (node) {
+		struct kernfs_node *kn;
+		int result;
+
+		kn = rb_to_kn(node);
+		result = kernfs_name_compare(hash, name, ns, kn);
+		if (result < 0)
+			node = node->rb_left;
+		else if (result > 0)
+			node = node->rb_right;
+		else
+			return kn;
+	}
+	return NULL;
+}
+struct kernfs_node *kernfs_find_ns_u(struct kernfs_node *parent,
+					  const unsigned char *name,
+					  const void *ns)
+{
+	struct rb_node *node = parent->dir.children.rb_node;
+	bool has_ns = kernfs_ns_enabled(parent);
+	unsigned int hash;
+
+	
 	lockdep_assert_held(&kernfs_mutex);
 
 	if (has_ns != (bool)ns) {
@@ -1013,7 +1046,6 @@ struct kernfs_node *kernfs_create_dir_ns(struct kernfs_node *parent,
 	kernfs_put(kn);
 	return ERR_PTR(rc);
 }
-
 /**
  * kernfs_create_empty_dir - create an always empty directory
  * @parent: parent in which to create a new directory

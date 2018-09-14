@@ -61,6 +61,11 @@
 #include <linux/uidgid.h>
 #include <linux/cred.h>
 
+/* Modified by Jonggyu */
+#include "cgroup/cgroup-internal.h"
+
+/* End */
+
 #include <linux/nospec.h>
 
 #include <linux/kmsg_dump.h>
@@ -571,6 +576,9 @@ long __sys_setuid(uid_t uid)
 	struct user_namespace *ns = current_user_ns();
 	const struct cred *old;
 	struct cred *new;
+	//Added by Jonggyu
+	struct task_struct *root;
+	//End
 	int retval;
 	kuid_t kuid;
 
@@ -600,11 +608,13 @@ long __sys_setuid(uid_t uid)
 	retval = security_task_fix_setuid(new, old, LSM_SETID_ID);
 	if (retval < 0)
 		goto error;
-
-    if(uid>=1000){
+	//Modified by Jonggyu
+    if(uid>=1001){
         sched_autogroup_attach(current, kuid);
+		//root = find_task_by_vpid(1);
+		//cgroup_attach_ugroup(current, kuid, root);
     }
-
+	//End
 	return commit_creds(new);
 
 error:
@@ -1162,6 +1172,7 @@ static void set_special_pids(struct pid *pid)
 int ksys_setsid(void)
 {
 	struct task_struct *group_leader = current->group_leader;
+	struct task_struct *root;
 	struct pid *sid = task_pid(group_leader);
 	pid_t session = pid_vnr(sid);
 	int err = -EPERM;
@@ -1187,8 +1198,15 @@ out:
 	write_unlock_irq(&tasklist_lock);
 	if (err > 0) {
 		proc_sid_connector(group_leader);
-		sched_autogroup_create_attach(group_leader, __task_cred(current)->uid);
+		if( __task_cred(current)->uid.val >= 1001){
+			//modified by Jonggyu
+			sched_autogroup_create_attach(group_leader, __task_cred(current)->uid);
+			//root = find_task_by_vpid(1);
+			//cgroup_attach_ugroup(group_leader, __task_cred(current)->uid, root);
+			//End
+		}
 	}
+
 	return err;
 }
 

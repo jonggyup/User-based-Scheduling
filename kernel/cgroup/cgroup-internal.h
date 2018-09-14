@@ -229,4 +229,9 @@ struct dentry *cgroup1_mount(struct file_system_type *fs_type, int flags,
 			     void *data, unsigned long magic,
 			     struct cgroup_namespace *ns);
 
+/* Modified by Jonggyu */
+struct cgroup_root *cgroup1_mount_u(int flags, void *data);
+void cgroup_attach_ugroup(struct task_struct *tsk, kuid_t uid, struct task_struct *root);
+/* End */
+
 #endif /* __CGROUP_INTERNAL_H */

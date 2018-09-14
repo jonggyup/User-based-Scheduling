@@ -4388,6 +4388,17 @@ out:
 		__free_pages(page, order);
 		page = NULL;
 	}
+	
+	/*Added by Jonggyu
+	 */
+	if(page) {
+		if(current->prio == NICE_TO_PRIO(3)) {
+				//printk("in page_alloc for foreground task");
+				page->foreground = true;
+				page->chances = 10;
+		}
+	}
+
 
 	trace_mm_page_alloc(page, order, alloc_mask, ac.migratetype);
 

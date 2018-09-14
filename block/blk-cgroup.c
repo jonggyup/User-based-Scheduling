@@ -1094,7 +1094,8 @@ blkcg_css_alloc(struct cgroup_subsys_state *parent_css)
 	struct blkcg *blkcg;
 	struct cgroup_subsys_state *ret;
 	int i;
-
+	
+	printk("In blkcg_css_alloc func.");
 	mutex_lock(&blkcg_pol_mutex);
 
 	if (!parent_css) {
@@ -1254,7 +1255,7 @@ static int blkcg_can_attach(struct cgroup_taskset *tset)
 	struct cgroup_subsys_state *dst_css;
 	struct io_context *ioc;
 	int ret = 0;
-
+	printk("In blkcg_can_attach func.");
 	/* task_lock() is needed to avoid races with exit_io_context() */
 	cgroup_taskset_for_each(task, dst_css, tset) {
 		task_lock(task);
@@ -1271,7 +1272,8 @@ static int blkcg_can_attach(struct cgroup_taskset *tset)
 static void blkcg_bind(struct cgroup_subsys_state *root_css)
 {
 	int i;
-
+	
+	printk("In blkcg_bind func.");
 	mutex_lock(&blkcg_pol_mutex);
 
 	for (i = 0; i < BLKCG_MAX_POLS; i++) {

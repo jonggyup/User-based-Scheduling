@@ -107,7 +107,12 @@ struct kernfs_node *kernfs_new_node(struct kernfs_node *parent,
 				    unsigned flags);
 struct kernfs_node *kernfs_find_and_get_node_by_ino(struct kernfs_root *root,
 						    unsigned int ino);
+/* Modified by jonggyu
+ 
+struct kernfs_node *kernfs_find_ns_u(struct kernfs_node *parent, 
+				const unsigned char *name, const void *ns);
 
+*/
 /*
  * file.c
  */

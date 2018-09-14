@@ -1920,6 +1920,7 @@ static void shrink_active_list(unsigned long nr_to_scan,
 	isolate_mode_t isolate_mode = 0;
 	int file = is_file_lru(lru);
 	struct pglist_data *pgdat = lruvec_pgdat(lruvec);
+	
 
 	lru_add_drain();
 
@@ -1956,6 +1957,13 @@ static void shrink_active_list(unsigned long nr_to_scan,
 				unlock_page(page);
 			}
 		}
+		//Added by Jonggyu
+		if(page->foreground == true && page->chances > 0) {
+			nr_rotated += hpage_nr_pages(page);
+			list_add_tail(&page->lru, &l_active);
+			page->chances--;
+			continue;
+
 
 		if (page_referenced(page, 0, sc->target_mem_cgroup,
 				    &vm_flags)) {
@@ -1973,6 +1981,9 @@ static void shrink_active_list(unsigned long nr_to_scan,
 				list_add(&page->lru, &l_active);
 				continue;
 			}
+		}
+
+		
 		}
 
 		ClearPageActive(page);	/* we are de-activating */

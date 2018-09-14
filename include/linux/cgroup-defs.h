@@ -20,7 +20,10 @@
 #include <linux/u64_stats_sync.h>
 #include <linux/workqueue.h>
 #include <linux/bpf-cgroup.h>
+/* Modified by Jonggyu */
+#include <linux/cred.h>
 
+/* End */ 
 #ifdef CONFIG_CGROUPS
 
 struct cgroup;
@@ -426,9 +429,16 @@ struct cgroup {
 
 	/* used to store eBPF programs */
 	struct cgroup_bpf bpf;
+	
+	/* Modified by Jonggyu */
+	kuid_t uid;
+	struct list_head ugroup_list;
+	/* End */
 
 	/* ids of the ancestors at each level including self */
 	int ancestor_ids[];
+
+	/* Adding uid to struct cgroup */
 };
 
 /*
